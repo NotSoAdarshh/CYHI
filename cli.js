@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits } from './command.js';
+import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit } from './command.js';
 import { projectOptions } from './options.js';
 
 const program = new Command();
@@ -100,11 +100,18 @@ program
     await watchRepoCommits(repo_url, options);
   });
 
+// Make changes to a previous commited change 
 program
   .command('rev')
-  .description('Reverse last push to GitHub repository')
-  .action(async () => {
-    await revertGithubPush();
+  .description('Reverse a previously made commit')
+  .argument('<branch>', 'Enter the branch name')
+  .option('-c, --commits-back <commits_back>', 'Enter the number of commits to reverse')
+  .option('-p, --push', 'Push the changes to the remote repository')
+  .action(async (branch, options) => {
+    await scrubPastCommit(branch, {
+      commitsBack: options.commitsBack,
+      push: options.push
+    });
   });
 
 

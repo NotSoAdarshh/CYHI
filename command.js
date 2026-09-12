@@ -456,17 +456,119 @@ async function watchRepoCommits(repoUrl, options = {}) {
   }
 }
 
-async function revertGithubPush() {
+async function scrubPastCommit(branch, options = {}) {
+  const rl = readline.createInterface({ input, output });
+
   try {
-    console.log(`Reverting last push to GitHub repository`);
-    const command = `git revert HEAD~1`;
-    const output = await runCommand(command);
-    console.log(output);
-  }
-  catch (err) {
-    console.log("Error in revertGithubPush function:", err.message);
+    const commitsBack = options.commitsBack ? parseInt(options.commitsBack, 10) : 3;
+    const targetBranch = branch || 'main';
+
+    console.log(`\n Git History Sanitizer`);
+    console.log(` Target Branch  : ${targetBranch}`);
+    console.log(` Depth          : HEAD~${commitsBack}`);
+
+    // Verify current working branch
+    const currentBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
+    if (currentBranch !== targetBranch) {
+      throw new Error(`Active branch '${currentBranch}' does not match target '${targetBranch}'. Checkout '${targetBranch}' first.`);
+    }
+
+    console.log(`\nInitiating interactive rebase...`);
+    console.log(`Instructions: In the editor that opens, change 'pick' to 'edit' next to the commit with credentials, then save and exit.\n`);
+
+    await rl.question('Press Enter to open the git editor...');
+
+    // Launch interactive rebase directly connected to terminal stdio
+    try {
+      execSync(`git rebase -i HEAD~${commitsBack}`, { stdio: 'inherit' });
+    } catch {
+      // Check if git is paused at the edit step or if the user aborted
+      const inRebase = fs.existsSync('.git/rebase-merge') || fs.existsSync('.git/rebase-apply');
+      if (!inRebase) {
+        throw new Error('Rebase stopped or aborted without marking a commit as "edit".');
+      }
+    }
+
+    // Ensure we are inside a paused rebase state
+    const isPausedInRebase = fs.existsSync('.git/rebase-merge') || fs.existsSync('.git/rebase-apply');
+    if (!isPausedInRebase) {
+      throw new Error('Rebase completed without pausing. Did you mark the commit with "edit"?');
+    }
+
+    const pausedCommitMsg = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim().split('\n')[0];
+    const pausedCommitSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+
+    console.log(`\n========================================================`);
+    console.log(` PAUSED AT COMMIT: [${pausedCommitSha}] ${pausedCommitMsg}`);
+    console.log(`========================================================`);
+    console.log(`Action required:`);
+    console.log(` 1. Open your files in your editor and remove/sanitize the credentials.`);
+    console.log(` 2. If untracking a file, add it to .gitignore or run 'git rm --cached <file>'.`);
+    console.log(`========================================================\n`);
+
+    const confirmation = await rl.question("Type 'done' when you have finished modifying your files (or 'abort' to cancel): ");
+
+    if (confirmation.trim().toLowerCase() !== 'done') {
+      console.log(`\nAborting rebase and restoring original repository state...`);
+      execSync('git rebase --abort', { stdio: 'inherit' });
+      console.log(`Repository restored to previous state.`);
+      return;
+    }
+
+    // Stage changes and amend the paused commit
+    console.log(`\n[1/3] Staging sanitized modifications...`);
+    execSync('git add -A');
+
+    console.log(`[2/3] Amending target commit...`);
+    execSync('git commit --amend --no-edit');
+
+    console.log(`[3/3] Replaying remaining commits...`);
+    try {
+      execSync('git rebase --continue', { stdio: 'inherit' });
+    } catch (rebaseErr) {
+      console.error(`\n Merge conflict encountered during 'git rebase --continue'.`);
+      console.error(`Resolve conflicts manually in your editor, run 'git add .', and run 'git rebase --continue'.`);
+      return;
+    }
+
+    console.log(`\n Local history successfully rewritten!`);
+    const newHeadSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
+    console.log(` Current HEAD : [${newHeadSha}]`);
+
+    // Remote sync
+    let shouldPush = options.autoPush;
+    if (!shouldPush) {
+      const pushPrompt = await rl.question(`\nDo you want to force-push the cleaned history to 'origin/${targetBranch}' now? (y/N): `);
+      shouldPush = pushPrompt.trim().toLowerCase() === 'y';
+    }
+
+    if (shouldPush) {
+      console.log(`\nForce-pushing to origin/${targetBranch} using --force-with-lease...`);
+      execSync(`git push origin ${targetBranch} --force-with-lease`, { stdio: 'inherit' });
+      console.log(`\n Successfully updated remote branch without the exposed credentials.`);
+    } else {
+      console.log(`\nPush skipped. You can push manually when ready:`);
+      console.log(` git push origin ${targetBranch} --force-with-lease`);
+    }
+
+  } catch (err) {
+    console.error(`\n Error during commit sanitization: ${err.message}`);
+  } finally {
+    rl.close();
   }
 }
+
+// async function revertGithubPush() {
+//   try {
+//     console.log(`Reverting last push to GitHub repository`);
+//     const command = `git revert HEAD~1`;
+//     const output = await runCommand(command);
+//     console.log(output);
+//   }
+//   catch (err) {
+//     console.log("Error in revertGithubPush function:", err.message);
+//   }
+// }
 
 export {
   frontEndFolder,
@@ -479,5 +581,6 @@ export {
   projectFolder,
   watchRepoCommits,
   fetchRepoCommits,
-  parseGitHubUrl
+  parseGitHubUrl,
+  scrubPastCommit
 };
