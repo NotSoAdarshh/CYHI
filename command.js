@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { exec as execCallback } from 'node:child_process';
+import { promptDependencies } from './options.js';
 const exec = promisify(execCallback);
 
 /**
