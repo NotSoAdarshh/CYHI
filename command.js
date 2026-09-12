@@ -256,6 +256,7 @@ async function vercelFrontEnd(project_name = '', options = {}) {
   }
 }
 
+
 async function vercelBackEnd(project_name = '', options = {}) {
   try {
     let targetDir = project_name ? path.resolve(project_name) : process.cwd();
@@ -301,7 +302,7 @@ async function vercelBackEnd(project_name = '', options = {}) {
       if (!indexContent.includes('export default app') && !indexContent.includes('module.exports = app')) {
         await fs.appendFile(indexPath, '\nexport default app;\n');
       }
-    } catch {}
+    } catch { }
 
     // Sanitize project name for Vercel: must be lowercase, alphanumeric + '.', '_', '-', no '---'
     const rawName = project_name ? `${project_name}-backend` : path.basename(targetDir);
