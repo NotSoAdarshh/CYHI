@@ -456,6 +456,18 @@ async function watchRepoCommits(repoUrl, options = {}) {
   }
 }
 
+async function revertGithubPush() {
+  try {
+    console.log(`Reverting last push to GitHub repository`);
+    const command = `git revert HEAD~1`;
+    const output = await runCommand(command);
+    console.log(output);
+  }
+  catch (err) {
+    console.log("Error in revertGithubPush function:", err.message);
+  }
+}
+
 export {
   frontEndFolder,
   frontEndBoilerPlate,

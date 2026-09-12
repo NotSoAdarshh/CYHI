@@ -91,15 +91,23 @@ program
 
 program
   .command('watch-commits')
-  .alias('watch')
   .description('Monitor a GitHub repository for new commits and log them in real-time')
-  .argument('<repo_url>', 'GitHub repository URL (e.g. https://github.com/owner/repo or owner/repo)')
-  .option('-b, --branch <branch>', 'Specific branch to monitor (default: repository default branch)')
-  .option('-i, --interval <minutes>', 'Polling interval in minutes (default: 10)', '10')
+  .argument('<repo_url>', 'GitHub repository URL you want to monitor')
+  .option('-b, --branch <branch>', 'Specific branch to monitor')
+  .option('-i, --interval <minutes>', 'Default set to 10')
   .option('-t, --token <token>', 'GitHub Personal Access Token (for private repos or higher rate limit)')
   .action(async (repo_url, options) => {
     await watchRepoCommits(repo_url, options);
   });
+
+program
+  .command('rev')
+  .description('Reverse last push to GitHub repository')
+  .action(async () => {
+    await revertGithubPush();
+  });
+
+
 
 // 3. Parse the user's terminal input
 program.parse(process.argv);
