@@ -326,4 +326,146 @@ async function vercelBackEnd(project_name = '', options = {}) {
   }
 }
 
-export { frontEndFolder, frontEndBoilerPlate, backEndFolder, backEndBoilerPlate, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, projectFolder }
+
+function parseGitHubUrl(url) {
+  if (!url) throw new Error('Repository URL or owner/repo string is required');
+  let cleaned = url.trim();
+  // Remove trailing slash and .git
+  cleaned = cleaned.replace(/\.git\/?$/, '').replace(/\/$/, '');
+
+  // Check for owner/repo format directly
+  const ownerRepoMatch = cleaned.match(/^([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)$/);
+  if (ownerRepoMatch) {
+    return { owner: ownerRepoMatch[1], repo: ownerRepoMatch[2] };
+  }
+
+  // Match github.com/owner/repo or github.com:owner/repo
+  const match = cleaned.match(/github\.com[:/]([a-zA-Z0-9_.-]+)\/([a-zA-Z0-9_.-]+)/i);
+  if (match) {
+    return { owner: match[1], repo: match[2] };
+  }
+
+  throw new Error(`Invalid GitHub repository URL: "${url}". Expected format: https://github.com/owner/repo or owner/repo`);
+}
+
+async function fetchRepoCommits(owner, repo, options = {}) {
+  const branchParam = options.branch ? `&sha=${encodeURIComponent(options.branch)}` : '';
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=10${branchParam}`;
+
+  const headers = {
+    'User-Agent': 'HackMe44-Commit-Watcher',
+    'Accept': 'application/vnd.github.v3+json'
+  };
+
+  const authToken = options.token || process.env.GITHUB_TOKEN;
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`;
+  }
+
+  const response = await fetch(apiUrl, { headers });
+
+  const remaining = response.headers.get('x-ratelimit-remaining');
+  const limit = response.headers.get('x-ratelimit-limit');
+  const resetTime = response.headers.get('x-ratelimit-reset');
+
+  if (response.status === 404) {
+    throw new Error(`Repository "${owner}/${repo}" not found or is private. If it is private, pass --token <token> or set GITHUB_TOKEN.`);
+  }
+
+  if (response.status === 403 && remaining === '0') {
+    const resetDate = resetTime ? new Date(parseInt(resetTime, 10) * 1000).toLocaleTimeString() : 'soon';
+    throw new Error(`GitHub API rate limit exceeded (Limit: ${limit}/hr). Resets at ${resetDate}. Tip: Pass a GitHub token (--token) for 5,000 requests/hr.`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`GitHub API responded with HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const commits = await response.json();
+  if (!Array.isArray(commits) || commits.length === 0) {
+    throw new Error(`No commits found for repository "${owner}/${repo}".`);
+  }
+
+  return { commits, rateLimit: { remaining, limit } };
+}
+
+async function watchRepoCommits(repoUrl, options = {}) {
+  try {
+    const { owner, repo } = parseGitHubUrl(repoUrl);
+    const intervalMinutes = options.interval ? parseFloat(options.interval) : 2;
+    const intervalMs = Math.max(intervalMinutes * 60 * 1000, 5000); // minimum 5s safe guard
+
+    console.log(`\nConnecting to GitHub for ${owner}/${repo}...`);
+    const initialData = await fetchRepoCommits(owner, repo, options);
+    let lastSeenSha = initialData.commits[0].sha;
+
+    const latest = initialData.commits[0];
+    const initialMsg = latest.commit.message.split('\n')[0];
+    const initialAuthor = latest.commit.author.name;
+    const initialDate = new Date(latest.commit.author.date).toLocaleString();
+
+
+    console.log(` GitHub Commit Watch`);
+    console.log(` Repository : ${owner}/${repo}`);
+    console.log(` Branch     : ${options.branch || 'default branch'}`);
+    console.log(` Current Branch: [${lastSeenSha.substring(0, 7)}] ${initialMsg}`);
+    console.log(` Author      : ${initialAuthor} on ${initialDate}`);
+
+    console.log(`Monitoring for new commits... (Press Ctrl+C to stop)\n`);
+
+    setInterval(async () => {
+      try {
+        const { commits } = await fetchRepoCommits(owner, repo, options);
+        if (!commits || commits.length === 0) return;
+
+        const currentLatestSha = commits[0].sha;
+        if (currentLatestSha !== lastSeenSha) {
+          // Find all new commits pushed since lastSeenSha
+          const lastIndex = commits.findIndex(c => c.sha === lastSeenSha);
+          const newCommits = lastIndex !== -1 ? commits.slice(0, lastIndex).reverse() : [commits[0]];
+
+          newCommits.forEach(commit => {
+            const shortSha = commit.sha.substring(0, 7);
+            const authorName = commit.commit.author.name;
+            const authorLogin = commit.author ? ` (@${commit.author.login})` : '';
+            const commitDate = new Date(commit.commit.author.date).toLocaleString();
+            const message = commit.commit.message;
+            const commitUrl = commit.html_url;
+
+            console.log(`\n NEW COMMIT DETECTED`);
+            console.log(` Commit  : ${shortSha} (${commit.sha})`);
+            console.log(` Author  : ${authorName}${authorLogin}`);
+            console.log(` Date    : ${commitDate}`);
+            console.log(` Message :\n${message.split('\n').map(line => '   ' + line).join('\n')}`);
+            console.log(` Link    : ${commitUrl}`);
+
+          });
+
+          lastSeenSha = currentLatestSha;
+        } else {
+          const now = new Date().toLocaleTimeString();
+          console.log(`[${now}] Polled ${owner}/${repo} - No new commits.`);
+        }
+      } catch (err) {
+        console.error(`[${new Date().toLocaleTimeString()}] Error checking commits:`, err.message);
+      }
+    }, intervalMs);
+
+  } catch (err) {
+    console.error(`\n Error starting commit watcher: ${err.message}`);
+  }
+}
+
+export {
+  frontEndFolder,
+  frontEndBoilerPlate,
+  backEndFolder,
+  backEndBoilerPlate,
+  InitalizeGitRepo,
+  vercelFrontEnd,
+  vercelBackEnd,
+  projectFolder,
+  watchRepoCommits,
+  fetchRepoCommits,
+  parseGitHubUrl
+};

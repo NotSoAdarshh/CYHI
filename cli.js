@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd } from './command.js';
+import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits } from './command.js';
 import { projectOptions } from './options.js';
 
 const program = new Command();
@@ -87,6 +87,18 @@ program
       // Default: deploy FrontEnd
       await vercelFrontEnd(name, options);
     }
+  });
+
+program
+  .command('watch-commits')
+  .alias('watch')
+  .description('Monitor a GitHub repository for new commits and log them in real-time')
+  .argument('<repo_url>', 'GitHub repository URL (e.g. https://github.com/owner/repo or owner/repo)')
+  .option('-b, --branch <branch>', 'Specific branch to monitor (default: repository default branch)')
+  .option('-i, --interval <minutes>', 'Polling interval in minutes (default: 10)', '10')
+  .option('-t, --token <token>', 'GitHub Personal Access Token (for private repos or higher rate limit)')
+  .action(async (repo_url, options) => {
+    await watchRepoCommits(repo_url, options);
   });
 
 // 3. Parse the user's terminal input
