@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { exec as execCallback } from 'node:child_process';
-import { execSync } from 'node:child_process';
+import { exec as execCallback, execSync } from 'node:child_process';
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 const exec = promisify(execCallback);
@@ -460,42 +460,59 @@ async function watchRepoCommits(repoUrl, options = {}) {
 }
 
 async function scrubPastCommit(branch, options = {}) {
-  const rl = readline.createInterface({ input, output });
+  let rl = readline.createInterface({ input, output });
 
   try {
-    const commitsBack = options.commitsBack ? parseInt(options.commitsBack, 10) : 3;
-    const targetBranch = branch || 'main';
+    // 1. Verify we are inside a Git repository
+    let gitDir;
+    try {
+      gitDir = execSync('git rev-parse --git-dir', { encoding: 'utf-8' }).trim();
+    } catch {
+      throw new Error('Not inside a Git repository. Please run this command within a Git repository.');
+    }
+
+    // 2. Determine and verify active branch
+    const currentBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
+    const targetBranch = branch || currentBranch || 'main';
 
     console.log(`\n Git History Sanitizer`);
     console.log(` Target Branch  : ${targetBranch}`);
-    console.log(` Depth          : HEAD~${commitsBack}`);
 
-    // Verify current working branch
-    const currentBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
-    if (currentBranch !== targetBranch) {
-      throw new Error(`Active branch '${currentBranch}' does not match target '${targetBranch}'. Checkout '${targetBranch}' first.`);
+    if (currentBranch && currentBranch !== targetBranch) {
+      throw new Error(`Active branch '${currentBranch}' does not match target '${targetBranch}'. Checkout '${targetBranch}' first using 'git checkout ${targetBranch}'.`);
     }
 
+    // 3. Determine commits depth / target
+    const commitsBack = options.commitsBack ? parseInt(options.commitsBack, 10) : 3;
+    const totalCommits = parseInt(execSync('git rev-list --count HEAD', { encoding: 'utf-8' }).trim(), 10);
+    const rebaseTarget = commitsBack >= totalCommits ? '--root' : `HEAD~${commitsBack}`;
+    console.log(` Depth          : ${rebaseTarget} (total commits in branch: ${totalCommits})`);
+
     console.log(`\nInitiating interactive rebase...`);
-    console.log(`Instructions: In the editor that opens, change 'pick' to 'edit' next to the commit with credentials, then save and exit.\n`);
+    console.log(`Instructions: In the editor that opens, change 'pick' to 'edit' next to the commit you want to modify, then save and exit.\n`);
 
     await rl.question('Press Enter to open the git editor...');
+    rl.close();
 
-    // Launch interactive rebase directly connected to terminal stdio
+    // 4. Launch interactive rebase directly connected to terminal stdio
     try {
-      execSync(`git rebase -i HEAD~${commitsBack}`, { stdio: 'inherit' });
+      execSync(`git rebase -i ${rebaseTarget}`, { stdio: 'inherit' });
     } catch {
       // Check if git is paused at the edit step or if the user aborted
-      const inRebase = fs.existsSync('.git/rebase-merge') || fs.existsSync('.git/rebase-apply');
+      const inRebase = existsSync(path.join(gitDir, 'rebase-merge')) || existsSync(path.join(gitDir, 'rebase-apply'));
       if (!inRebase) {
         throw new Error('Rebase stopped or aborted without marking a commit as "edit".');
       }
     }
 
-    // Ensure we are inside a paused rebase state
-    const isPausedInRebase = fs.existsSync('.git/rebase-merge') || fs.existsSync('.git/rebase-apply');
+    // Reopen readline interface for subsequent prompts
+    rl = readline.createInterface({ input, output });
+
+    // 5. Ensure we are inside a paused rebase state
+    const isPausedInRebase = existsSync(path.join(gitDir, 'rebase-merge')) || existsSync(path.join(gitDir, 'rebase-apply'));
     if (!isPausedInRebase) {
-      throw new Error('Rebase completed without pausing. Did you mark the commit with "edit"?');
+      console.log('Rebase completed without pausing. (No commit was marked with "edit").');
+      return;
     }
 
     const pausedCommitMsg = execSync('git log -1 --pretty=%B', { encoding: 'utf-8' }).trim().split('\n')[0];
@@ -518,7 +535,7 @@ async function scrubPastCommit(branch, options = {}) {
       return;
     }
 
-    // Stage changes and amend the paused commit
+    // 6. Stage changes and amend the paused commit
     console.log(`\n[1/3] Staging sanitized modifications...`);
     execSync('git add -A');
 
@@ -538,8 +555,8 @@ async function scrubPastCommit(branch, options = {}) {
     const newHeadSha = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
     console.log(` Current HEAD : [${newHeadSha}]`);
 
-    // Remote sync
-    let shouldPush = options.autoPush;
+    // 7. Remote sync
+    let shouldPush = options.push || options.autoPush;
     if (!shouldPush) {
       const pushPrompt = await rl.question(`\nDo you want to force-push the cleaned history to 'origin/${targetBranch}' now? (y/N): `);
       shouldPush = pushPrompt.trim().toLowerCase() === 'y';
@@ -560,6 +577,8 @@ async function scrubPastCommit(branch, options = {}) {
     rl.close();
   }
 }
+
+
 
 // async function revertGithubPush() {
 //   try {
