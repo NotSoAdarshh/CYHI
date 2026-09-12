@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit } from './command.js';
-import { projectOptions } from './options.js';
+import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit, installDependencies, installFrontendDependencies, installBackendDependencies, installPackages } from './command.js';
+import { projectOptions, promptDependencies, typeDependencies, selectDependencies } from './options.js';
 
 const program = new Command();
 
@@ -115,6 +115,23 @@ program
   });
 
 
+
+program
+  .command('add')
+  .alias('install')
+  .description('Install dependencies (type multiple packages or select interactively)')
+  .argument('[packages...]', 'Package names to install (optional, launches interactive prompt if omitted)')
+  .option('-d, --dev', 'Save packages as devDependencies (-D)')
+  .option('-p, --path <path>', 'Target directory to install in', '')
+  .action(async (packages, options) => {
+    let toInstall = packages;
+    if (!toInstall || toInstall.length === 0) {
+      toInstall = await promptDependencies();
+    }
+    if (toInstall && toInstall.length > 0) {
+      await installPackages(toInstall, options.path, options.dev);
+    }
+  });
 
 // 3. Parse the user's terminal input
 program.parse(process.argv);

@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { exec as execCallback, execSync } from 'node:child_process';
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { promptDependencies } from './options.js';
 const exec = promisify(execCallback);
 
 /**
@@ -157,11 +158,18 @@ async function backEndBoilerPlate(project_name = '') {
     await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
     // 4. Install express and nodemon
-    console.log("Installing express and nodemon...");
+    console.log("Installing base BackEnd packages (express, nodemon)...");
     const installResult = await runCommand('npm install express nodemon', { cwd: folderPath });
-    console.log(`Installed packages in BackEnd:\n${installResult}`);
+    console.log(`Installed base packages in BackEnd:\n${installResult}`);
 
-    // 5. Create starter index.js
+    // 5. Prompt and install user-selected dependencies for BackEnd
+    console.log(`\n📦 Select BackEnd dependencies to install for "${project_name || 'BackEnd'}":`);
+    const customPackages = await promptDependencies();
+    if (customPackages && customPackages.length > 0) {
+      await installDependencies(customPackages, folderPath);
+    }
+
+    // 6. Create starter index.js
     const starterServer = `import express from 'express';
 
 const app = express();
@@ -592,6 +600,66 @@ async function scrubPastCommit(branch, options = {}) {
 //   }
 // }
 
+/**
+ * Installs specified npm packages into the target directory.
+ * @param {string[]|string} packages - Array of package names or space-separated string
+ * @param {string} targetDir - Destination directory (default: current working directory)
+ * @param {boolean} isDev - Whether to install as devDependencies (-D)
+ */
+async function installDependencies(packages = [], targetDir = '', isDev = false) {
+  try {
+    const pkgArray = Array.isArray(packages)
+      ? packages.map(p => p.trim()).filter(Boolean)
+      : String(packages).split(/[\s,]+/).map(p => p.trim()).filter(Boolean);
+
+    if (pkgArray.length === 0) {
+      console.log('No dependencies specified to install.');
+      return;
+    }
+
+    const resolvedDir = targetDir ? path.resolve(targetDir) : process.cwd();
+    const pkgList = pkgArray.join(' ');
+    const devFlag = isDev ? '-D' : '';
+    const cmd = `npm install ${devFlag} ${pkgList}`.replace(/\s+/g, ' ').trim();
+
+    console.log(`\n Installing dependencies in ${resolvedDir}...`);
+    console.log(`> ${cmd}\n`);
+
+    const output = await runCommand(cmd, { cwd: resolvedDir });
+    console.log(output);
+    console.log(`\n Successfully installed ${pkgArray.length} package(s): ${pkgArray.join(', ')}\n`);
+  } catch (err) {
+    console.error(`\n Error installing dependencies in ${targetDir || 'current directory'}:`, err.message);
+  }
+}
+
+/**
+ * Installs dependencies specifically into the FrontEnd directory of a project
+ * @param {string} projectName - Project folder name
+ * @param {string[]|string} packages - Packages to install
+ * @param {boolean} isDev - Whether to install as devDependencies
+ */
+async function installFrontendDependencies(projectName = '', packages = [], isDev = false) {
+  const targetDir = projectName ? path.join(projectName, 'FrontEnd') : 'FrontEnd';
+  console.log(`Installing FrontEnd dependencies for "${projectName || 'current project'}"...`);
+  await installDependencies(packages, targetDir, isDev);
+}
+
+/**
+ * Installs dependencies specifically into the BackEnd directory of a project
+ * @param {string} projectName - Project folder name
+ * @param {string[]|string} packages - Packages to install
+ * @param {boolean} isDev - Whether to install as devDependencies
+ */
+async function installBackendDependencies(projectName = '', packages = [], isDev = false) {
+  const targetDir = projectName ? path.join(projectName, 'BackEnd') : 'BackEnd';
+  console.log(`Installing BackEnd dependencies for "${projectName || 'current project'}"...`);
+  await installDependencies(packages, targetDir, isDev);
+}
+
+// Alias for installDependencies
+const installPackages = installDependencies;
+
 export {
   frontEndFolder,
   frontEndBoilerPlate,
@@ -604,5 +672,10 @@ export {
   watchRepoCommits,
   fetchRepoCommits,
   parseGitHubUrl,
-  scrubPastCommit
+  scrubPastCommit,
+  installDependencies,
+  installFrontendDependencies,
+  installBackendDependencies,
+  installPackages
 };
+
