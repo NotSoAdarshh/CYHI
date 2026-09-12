@@ -2,14 +2,11 @@ import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { exec as execCallback, execSync } from 'node:child_process';
-import * as readline from 'node:readline/promises';
-import { stdin as input, stdout as output } from 'node:process';
-import { promptDependencies } from './options.js';
+import { exec as execCallback } from 'node:child_process';
 const exec = promisify(execCallback);
 
 /**
- * Executes a terminal command and returns the output.
+ * Executes a erminal command and returns the output.
  * @param {string} command - The terminal command to run.
  * @returns {Promise<string>} - The command output (stdout).
  */
