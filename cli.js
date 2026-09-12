@@ -103,10 +103,10 @@ program
 // Make changes to a previous commited change 
 program
   .command('rev')
-  .description('Reverse a previously made commit')
-  .argument('<branch>', 'Enter the branch name')
-  .option('-c, --commits-back <commits_back>', 'Enter the number of commits to reverse')
-  .option('-p, --push', 'Push the changes to the remote repository')
+  .description('Reverse or modify a previous commit via interactive rebase')
+  .argument('[branch]', 'Target branch name (default: active branch)')
+  .option('-c, --commits-back <commits_back>', 'Number of commits back to include in rebase', '3')
+  .option('-p, --push', 'Force push changes to the remote repository')
   .action(async (branch, options) => {
     await scrubPastCommit(branch, {
       commitsBack: options.commitsBack,
