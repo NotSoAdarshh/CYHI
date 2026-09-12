@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo } from './command.js';
+import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd } from './command.js';
 import { projectOptions } from './options.js';
 
 const program = new Command();
@@ -61,6 +61,33 @@ program
     await InitalizeGitRepo(name, repo_url);
   });
 
+program
+  .command('vercel')
+  .description('Deploys project to Vercel')
+  .argument('[name]', 'Project folder name ')
+  .option('-f, --front', 'Deploy FrontEnd')
+  .option('-b, --back', 'Deploy BackEnd')
+  .option('-p, --prod', 'Deploy directly to production')
+  .action(async (name, options) => {
+    if (options.back && !options.front) {
+
+      await vercelBackEnd(name, options);
+
+    } else if (options.front && !options.back) {
+
+      await vercelFrontEnd(name, options);
+
+    } else if (options.front && options.back) {
+
+      await vercelFrontEnd(name, options);
+
+      await vercelBackEnd(name, options);
+
+    } else {
+      // Default: deploy FrontEnd
+      await vercelFrontEnd(name, options);
+    }
+  });
 
 // 3. Parse the user's terminal input
 program.parse(process.argv);

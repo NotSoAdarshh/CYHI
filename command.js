@@ -220,4 +220,109 @@ async function InitalizeGitRepo(project_name = '', repo_url = '') {
   }
 }
 
-export { frontEndFolder, frontEndBoilerPlate, backEndFolder, backEndBoilerPlate, InitalizeGitRepo, projectFolder }
+async function vercelFrontEnd(project_name = '', options = {}) {
+  try {
+    let targetDir = project_name ? path.resolve(project_name) : process.cwd();
+
+    // Check if there is a FrontEnd subfolder (common in our generated projects)
+    const frontEndDir = path.join(targetDir, 'FrontEnd');
+    try {
+      await fs.access(frontEndDir);
+      targetDir = frontEndDir;
+      console.log(`Found FrontEnd folder. Deploying: ${targetDir}`);
+    } catch {
+      console.log(`Deploying directory: ${targetDir}`);
+    }
+
+    // Sanitize project name for Vercel: must be lowercase, alphanumeric + '.', '_', '-', no '---'
+    const rawName = project_name ? `${project_name}-frontend` : path.basename(targetDir);
+    const sanitizedName = rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '-')
+      .replace(/-{3,}/g, '--')
+      .slice(0, 100);
+
+    // Run Vercel deploy non-interactively using npx with lowercase project name
+    const prodFlag = options.prod ? '--prod' : '';
+    const deployCmd = `npx --yes vercel --name "${sanitizedName}" ${prodFlag} --yes`;
+    console.log(`> ${deployCmd}`);
+    const output = await runCommand(deployCmd, { cwd: targetDir });
+    console.log(`Vercel output:\n${output}`);
+
+    console.log("FrontEnd Vercel deployment finished successfully!");
+  }
+  catch (err) {
+    console.log("Handled error in vercelFrontEnd function:", err.message);
+  }
+}
+
+async function vercelBackEnd(project_name = '', options = {}) {
+  try {
+    let targetDir = project_name ? path.resolve(project_name) : process.cwd();
+
+    // Check if there is a BackEnd subfolder
+    const backEndDir = path.join(targetDir, 'BackEnd');
+    try {
+      await fs.access(backEndDir);
+      targetDir = backEndDir;
+      console.log(`Found BackEnd folder. Deploying: ${targetDir}`);
+    } catch {
+      console.log(`Deploying directory: ${targetDir}`);
+    }
+
+    // Ensure vercel.json exists for Express serverless routing on Vercel
+    const vercelConfigPath = path.join(targetDir, 'vercel.json');
+    try {
+      await fs.access(vercelConfigPath);
+    } catch {
+      const vercelConfig = {
+        version: 2,
+        builds: [
+          {
+            src: "index.js",
+            use: "@vercel/node"
+          }
+        ],
+        routes: [
+          {
+            src: "/(.*)",
+            dest: "index.js"
+          }
+        ]
+      };
+      await fs.writeFile(vercelConfigPath, JSON.stringify(vercelConfig, null, 2));
+      console.log("Created vercel.json for BackEnd deployment.");
+    }
+
+    // Ensure index.js exports app for Vercel serverless functions
+    const indexPath = path.join(targetDir, 'index.js');
+    try {
+      const indexContent = await fs.readFile(indexPath, 'utf-8');
+      if (!indexContent.includes('export default app') && !indexContent.includes('module.exports = app')) {
+        await fs.appendFile(indexPath, '\nexport default app;\n');
+      }
+    } catch {}
+
+    // Sanitize project name for Vercel: must be lowercase, alphanumeric + '.', '_', '-', no '---'
+    const rawName = project_name ? `${project_name}-backend` : path.basename(targetDir);
+    const sanitizedName = rawName
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, '-')
+      .replace(/-{3,}/g, '--')
+      .slice(0, 100);
+
+    // Run Vercel deploy non-interactively using npx with lowercase project name
+    const prodFlag = options.prod ? '--prod' : '';
+    const deployCmd = `npx --yes vercel --name "${sanitizedName}" ${prodFlag} --yes`;
+    console.log(`> ${deployCmd}`);
+    const output = await runCommand(deployCmd, { cwd: targetDir });
+    console.log(`Vercel output:\n${output}`);
+
+    console.log("BackEnd Vercel deployment finished successfully!");
+  }
+  catch (err) {
+    console.log("Handled error in vercelBackEnd function:", err.message);
+  }
+}
+
+export { frontEndFolder, frontEndBoilerPlate, backEndFolder, backEndBoilerPlate, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, projectFolder }
