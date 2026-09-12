@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import { Command } from 'commander';
 import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit, installDependencies, installFrontendDependencies, installBackendDependencies, installPackages } from './command.js';
 import { projectOptions, promptDependencies, typeDependencies, selectDependencies } from './options.js';
@@ -29,23 +30,34 @@ program
   .command('project')
   .description('Creates a project folder')
   .argument('<name>', 'The name of the project') // < > means required
+  .option('-p, --path <targetPath>', 'Base directory path where the project should be created')
   .option('-f, --front', 'Creates a FrontEnd folder')
   .option('-b, --back', 'Creates a BackEnd folder')
   .option('--fb, --frontandback', 'Creates FrontEnd and BackEnd folders')
   .action(async (name, options) => {
-    await projectFolder(name);
+    const targetPath = options.path ? path.resolve(options.path, name) : name;
+    await projectFolder(targetPath);
 
-    const projectType = await projectOptions();
+    let projectType;
+    if (options.frontandback) {
+      projectType = 'frontandback';
+    } else if (options.front) {
+      projectType = 'front';
+    } else if (options.back) {
+      projectType = 'back';
+    } else {
+      projectType = await projectOptions();
+    }
 
     if (projectType === 'frontandback') {
-      await frontEndFolder(name);
-      await backEndFolder(name);
+      await frontEndFolder(targetPath);
+      await backEndFolder(targetPath);
     }
     else if (projectType === 'front') {
-      await frontEndFolder(name);
+      await frontEndFolder(targetPath);
     }
     else if (projectType === 'back') {
-      await backEndFolder(name);
+      await backEndFolder(targetPath);
     }
     else {
       console.log('No option selected');

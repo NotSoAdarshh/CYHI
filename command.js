@@ -32,35 +32,37 @@ async function runCommand(command, options = {}) {
 
 async function projectFolder(project_name) {
   try {
-    console.log("Creating an Project folder ");
-    // const dire = await runCommand('cd')
-    const file = `mkdir "${project_name}"`
-    const result = await runCommand(file)
-    console.log(`Created an Project folder ${result}`);
+    const targetDir = path.resolve(project_name);
+    console.log(`Creating Project folder: ${targetDir}`);
+    await fs.mkdir(targetDir, { recursive: true });
+    console.log(`Created Project folder: ${targetDir}`);
   }
   catch (err) {
-    console.log("Handled error in main function.");
+    console.log("Handled error in projectFolder function:", err.message);
   }
 }
 
 async function frontEndFolder(project_name = '') {
   try {
     console.log("Creating an FrontEnd folder ");
-    const folderPath = project_name ? `${project_name}/FrontEnd` : 'FrontEnd';
-    const file1 = `npm create vite@latest "${folderPath}" -- --template react`;
-    const result = await runCommand(file1);
+    const folderPath = project_name ? path.resolve(project_name, 'FrontEnd') : path.resolve('FrontEnd');
+    await fs.mkdir(folderPath, { recursive: true });
+
+    // Run create-vite with '.' inside the target directory so Vite does not sanitize absolute paths into malformed directory names
+    const file1 = `npm create vite@latest . -- --template react`;
+    const result = await runCommand(file1, { cwd: folderPath });
 
     console.log(`Created an FrontEnd folder:\n${result}`);
     await frontEndBoilerPlate(project_name);
   }
   catch (err) {
-    console.log("Handled error in main function.");
+    console.log("Handled error in frontEndFolder function:", err.message);
   }
 }
 
 async function frontEndBoilerPlate(project_name = '') {
   try {
-    const folderPath = project_name ? path.join(project_name, 'FrontEnd') : 'FrontEnd';
+    const folderPath = project_name ? path.resolve(project_name, 'FrontEnd') : path.resolve('FrontEnd');
 
     // 1. Delete App.css, README.md, and assets directory
     await fs.rm(path.join(folderPath, 'src', 'App.css'), { force: true });
@@ -116,7 +118,7 @@ export default defineConfig({
 async function backEndFolder(project_name = '') {
   try {
     console.log("Creating an BackEnd folder ");
-    const folderPath = project_name ? path.join(project_name, 'BackEnd') : 'BackEnd';
+    const folderPath = project_name ? path.resolve(project_name, 'BackEnd') : path.resolve('BackEnd');
     await fs.mkdir(folderPath, { recursive: true });
     console.log(`Created an BackEnd folder`);
 
@@ -129,7 +131,7 @@ async function backEndFolder(project_name = '') {
 
 async function backEndBoilerPlate(project_name = '') {
   try {
-    const folderPath = project_name ? path.join(project_name, 'BackEnd') : 'BackEnd';
+    const folderPath = project_name ? path.resolve(project_name, 'BackEnd') : path.resolve('BackEnd');
     const subFolders = ['config', 'controllers', 'middleware', 'models', 'routes'];
 
     // 1. Create subfolders
