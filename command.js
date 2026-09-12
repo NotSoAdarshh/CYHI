@@ -2,6 +2,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { exec as execCallback } from 'node:child_process';
+import { execSync } from 'node:child_process';
+import * as readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 const exec = promisify(execCallback);
 
 /**
