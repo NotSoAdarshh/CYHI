@@ -764,9 +764,10 @@ async function harvestCommits(sourceBranch, startNum, endNum, options = {}) {
     console.log(`\n[2/3] Switching to '${sourceBranch}' to excise harvested commits...`);
     await runCommand(`git checkout ${sourceBranch}`);
 
-    console.log(`[3/3] Running surgical rebase: git rebase --onto ${firstCommit.sha}^ ${lastCommit.sha} ${sourceBranch}`);
-    // rebase --onto X^ Y feature drops X..Y from feature branch and keeps subsequent commits (Z)
-    await runCommand(`git rebase --onto ${firstCommit.sha}^ ${lastCommit.sha} ${sourceBranch}`);
+    console.log(`[3/3] Running surgical rebase: git rebase --onto ${targetBranch} ${lastCommit.sha} ${sourceBranch}`);
+    // rebase --onto <targetBranch> <lastHarvestedSha> <sourceBranch>
+    // This replays everything after lastCommit onto targetBranch, dropping the harvested range from sourceBranch.
+    await runCommand(`git rebase --onto ${targetBranch} ${lastCommit.sha} ${sourceBranch}`);
 
     // 6. Return back to target branch
     await runCommand(`git checkout ${targetBranch}`);
@@ -811,4 +812,3 @@ export {
   installPackages,
   harvestCommits
 };
-
