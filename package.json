@@ -1,18 +1,38 @@
 {
-  "name": "cyhi",
+  "name": "hackme44",
   "version": "1.0.0",
-  "description": "",
+  "description": "A unified CLI to streamline full-stack development workflows from project initialization to Git automation and deployment",
   "main": "cli.js",
   "type": "module",
   "bin": {
     "hackme44": "./cli.js"
   },
+  "files": [
+    "cli.js",
+    "github.js",
+    "project.js",
+    "dependencies.js",
+    "options.js",
+    "utils.js",
+    "command.js",
+    "README.md"
+  ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "cli",
+    "git",
+    "automation",
+    "react",
+    "vite",
+    "express",
+    "vercel",
+    "hackathon",
+    "scaffolding"
+  ],
+  "author": "HackMe44",
+  "license": "MIT",
   "dependencies": {
     "@clack/prompts": "^1.8.0",
     "commander": "^15.0.0",
