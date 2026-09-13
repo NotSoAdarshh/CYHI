@@ -41,12 +41,18 @@ hackme44 <command> --help
 <a id="core-features"></a>
 ##  Core Features
 
-*   **Project Initialization:** Quickly generate standardized frontend (React/Vite), backend (Node.js/Express), or full-stack project structures with automated Tailwind CSS configurations with just one command 
-*   **Git Repository Management:** Intialize repo and create a GitHub repo with a single command within the terminal.
-*   **Dependency Management:** Choose the dependencies to install by using the search bar or drop-down menu
-*   **GitHub Integration:** Monitor remote repositories for new commits by notifications in the terminal , synchronize forks automatically , and           harvest commits across branches.
-*   **Advanced Git Operations:** Perform interactive rebases to sanitize commit histories and manage cross-branch synchronization.
-*    **Vercel Deployment:** Execute one-click deployments for frontend, backend, or full-stack environments through one command. 
+*   **Project Initialization:**
+*   Quickly generate standardized frontend (React/Vite), backend (Node.js/Express), or full-stack project structures with automated Tailwind CSS         configurations with just one command 
+*   **Git Repository Management:**
+*   Intialize repo and create a GitHub repo with a single command within the terminal.
+*   **Dependency Management:**
+*   Choose the dependencies to install by using the search bar or drop-down menu
+*   **GitHub Integration:**
+*   Monitor remote repositories for new commits by notifications in the terminal , synchronize forks automatically , and           harvest commits       across branches.
+*   **Advanced Git Operations:**
+*   Perform interactive rebases to sanitize commit histories and manage cross-branch synchronization.
+*    **Vercel Deployment:**
+*    Execute one-click deployments for frontend, backend, or full-stack environments through one command. 
 
 <a id="command-reference"></a>
 ##  Command Reference
