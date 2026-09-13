@@ -6,7 +6,73 @@ import readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { runCommand, exec } from './utils.js';
 
-async function InitalizeGitRepo(project_name = '', repo_url = '') {
+/**
+ * Creates a repository on GitHub for the authenticated user using the GitHub REST API.
+ * @param {string} repoName - Name of repository to create
+ * @param {object} options - { token, private, description }
+ * @returns {Promise<{ url: string, created: boolean, username: string, alreadyExists?: boolean }>}
+ */
+async function createGitHubRepo(repoName, options = {}) {
+  const token = options.token || process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error('A GitHub Personal Access Token is required to automatically create a repository on GitHub. Set GITHUB_TOKEN in .env or pass --token.');
+  }
+
+  const headers = {
+    'User-Agent': 'HackMe44-CLI',
+    'Accept': 'application/vnd.github+json',
+    'Authorization': `Bearer ${token}`,
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json'
+  };
+
+  // Get authenticated username
+  const userRes = await fetch('https://api.github.com/user', { headers });
+  if (!userRes.ok) {
+    throw new Error(`Failed to authenticate with GitHub: ${userRes.statusText}`);
+  }
+  const userData = await userRes.json();
+  const username = userData.login;
+
+  // Try to create repository
+  const createRes = await fetch('https://api.github.com/user/repos', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      name: repoName,
+      private: Boolean(options.private),
+      description: options.description || 'Created with HackMe44 CLI'
+    })
+  });
+
+  const createData = await createRes.json().catch(() => ({}));
+
+  if (createRes.status === 201) {
+    return {
+      url: createData.clone_url || `https://github.com/${username}/${repoName}.git`,
+      created: true,
+      username
+    };
+  }
+
+  // If repo already exists on GitHub account
+  const isAlreadyExists = createRes.status === 422 &&
+    (createData.message?.includes('already exists') ||
+      JSON.stringify(createData.errors || []).includes('already exists'));
+
+  if (isAlreadyExists) {
+    return {
+      url: `https://github.com/${username}/${repoName}.git`,
+      created: false,
+      username,
+      alreadyExists: true
+    };
+  }
+
+  throw new Error(`GitHub API error (${createRes.status}): ${createData.message || createRes.statusText}`);
+}
+
+async function InitalizeGitRepo(project_name = '', repo_url = '', options = {}) {
   try {
     const targetDir = project_name ? path.resolve(project_name) : process.cwd();
 
@@ -14,7 +80,7 @@ async function InitalizeGitRepo(project_name = '', repo_url = '') {
       throw new Error(`Directory "${targetDir}" does not exist. If your project was created in a custom path (e.g., -p ../), please pass the full path or use -p/--path.`);
     }
 
-    console.log(`Initializing Git repository in ${targetDir}...`);
+    console.log(`\nInitializing Git repository in ${targetDir}...`);
 
     // Ensure root .gitignore exists and ignores .env and node_modules before staging
     const rootGitignore = path.join(targetDir, '.gitignore');
@@ -37,22 +103,66 @@ async function InitalizeGitRepo(project_name = '', repo_url = '') {
 
     // 3. git commit -m "Initial commit"
     console.log('> git commit -m "Initial commit"');
-    await runCommand('git commit -m "Initial commit"', { cwd: targetDir });
+    try {
+      await runCommand('git commit -m "Initial commit"', { cwd: targetDir });
+    } catch {
+      console.log('Working tree already clean or nothing to commit.');
+    }
 
     // 4. git branch -M main
     console.log("> git branch -M main");
     await runCommand('git branch -M main', { cwd: targetDir });
 
-    // 5. git remote add origin <url>
-    const remoteUrl = repo_url || (project_name ? `https://github.com/USERNAME/${path.basename(project_name)}.git` : 'https://github.com/USERNAME/myProject.git');
-    console.log(`> git remote add origin ${remoteUrl}`);
-    await runCommand(`git remote add origin ${remoteUrl}`, { cwd: targetDir });
+    // 5. Determine remote repository URL
+    let remoteUrl = repo_url;
 
-    // 6. git push -u origin main
+    if (!remoteUrl) {
+      // Auto-create or resolve on GitHub using the project name
+      const repoName = path.basename(targetDir);
+      console.log(`\nNo remote URL provided. Creating GitHub repository "${repoName}" automatically...`);
+
+      try {
+        const repoInfo = await createGitHubRepo(repoName, options);
+        remoteUrl = repoInfo.url;
+        if (repoInfo.created) {
+          console.log(`🎉 Created new repository on GitHub: ${remoteUrl}`);
+        } else if (repoInfo.alreadyExists) {
+          console.log(`ℹ️ Repository "${repoName}" already exists on GitHub for ${repoInfo.username}. Using: ${remoteUrl}`);
+        }
+      } catch (err) {
+        console.warn(`⚠️ Could not auto-create repository on GitHub: ${err.message}`);
+        remoteUrl = `https://github.com/USERNAME/${repoName}.git`;
+        console.log(`Falling back to: ${remoteUrl}`);
+      }
+    }
+
+    // 6. Connect remote origin
+    try {
+      const existingRemotes = await runCommand('git remote', { cwd: targetDir });
+      const remotesList = existingRemotes.split('\n').map(r => r.trim());
+      if (remotesList.includes('origin')) {
+        console.log(`> git remote set-url origin ${remoteUrl}`);
+        await runCommand(`git remote set-url origin ${remoteUrl}`, { cwd: targetDir });
+      } else {
+        console.log(`> git remote add origin ${remoteUrl}`);
+        await runCommand(`git remote add origin ${remoteUrl}`, { cwd: targetDir });
+      }
+    } catch {
+      console.log(`> git remote add origin ${remoteUrl}`);
+      await runCommand(`git remote add origin ${remoteUrl}`, { cwd: targetDir });
+    }
+
+    // 7. git push -u origin main
     console.log("> git push -u origin main");
-    await runCommand('git push -u origin main', { cwd: targetDir });
-
-    console.log("Git repository initialized and pushed successfully!");
+    try {
+      await runCommand('git push -u origin main', { cwd: targetDir });
+      console.log("\n🚀 Git repository initialized and pushed to GitHub successfully!");
+    } catch (pushErr) {
+      console.warn(`\n⚠️ Note on push: ${pushErr.message}`);
+      console.log(`Repository is initialized and connected to origin (${remoteUrl}).`);
+      console.log(`To push manually at any time:`);
+      console.log(`  cd "${targetDir}" && git push -u origin main\n`);
+    }
   }
   catch (err) {
     console.log("Handled error in InitalizeGitRepo function:", err.message);
@@ -649,6 +759,7 @@ async function harvestCommits(sourceBranch, startNum, endNum, options = {}) {
 
 export {
   InitalizeGitRepo,
+  createGitHubRepo,
   parseGitHubUrl,
   fetchRepoCommits,
   watchRepoCommits,

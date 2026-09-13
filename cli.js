@@ -108,13 +108,17 @@ program
 
 program
   .command('init-repo')
-  .description('Initialize a git repository and connect to a remote repository')
+  .description('Initialize a git repository and connect to a remote repository (auto-creates on GitHub if URL is omitted)')
   .argument('<name>', 'Project folder name')
-  .argument('<repo_url>', 'Remote Git repository URL')
+  .argument('[repo_url]', 'Remote Git repository URL (optional)')
   .option('-p, --path <targetPath>', 'Base directory path where the project is located')
-  .action(async (name, repo_url, options) => {
+  .option('-u, --url <repo_url>', 'Remote Git repository URL')
+  .option('-t, --token <token>', 'GitHub Personal Access Token')
+  .option('--private', 'Create repository as private on GitHub (default: public)')
+  .action(async (name, repo_url_arg, options) => {
     const targetPath = options.path ? path.resolve(options.path, name) : name;
-    await InitalizeGitRepo(targetPath, repo_url);
+    const repo_url = options.url || repo_url_arg || '';
+    await InitalizeGitRepo(targetPath, repo_url, options);
   });
 
 program
