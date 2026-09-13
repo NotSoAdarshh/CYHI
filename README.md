@@ -1,14 +1,12 @@
 #  HackMe44 
 
->  Built for the 24-Hour "Can You Hack It?" (CYHI) Hackathon
-> A powerful, unified Command Line Interface (CLI) built with Commander.js to streamline project setup, version control operations, and deployment workflows for rapid hackathon development. 
+A unified Command Line Interface (CLI) built with Commander.js to streamline end to end development workflows from intializing project to deploying it for rapid development.
 
 ## Table of Contents
 - [Installation](#installation)
 - [Getting Started](#getting-started)
 - [Core Features](#core-features)
 - [Command Reference](#command-reference)
-- [Use Cases](#use-cases)
 - [Examples](#examples)
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
@@ -33,11 +31,6 @@ npx hackme44 <command>
 <a id="getting-started"></a>
 ##  Getting Started
 
-Verify the tool is active:
-```bash
-hackme44 --version
-```
-
 Access the help system at any time:
 ```bash
 hackme44 --help
@@ -48,12 +41,12 @@ hackme44 <command> --help
 <a id="core-features"></a>
 ##  Core Features
 
-*   **Project Initialization:** Quickly generate standardized frontend (React/Vite), backend (Node.js/Express), or full-stack project structures with automated Tailwind CSS configurations.
-*   **Git Repository Management:** Initialize repositories, connect remotes, and manage branches natively.
-*   **Dependency Management:** Interactively select or manually inject standard and development dependencies.
-*   **Vercel Deployment:** Execute one-click deployments for frontend, backend, or full-stack environments. 
-*   **GitHub Integration:** Monitor remote repositories, synchronize forks, and harvest commits across branches.
+*   **Project Initialization:** Quickly generate standardized frontend (React/Vite), backend (Node.js/Express), or full-stack project structures with automated Tailwind CSS configurations with just one command 
+*   **Git Repository Management:** Intialize repo and create a GitHub repo with a single command within the terminal.
+*   **Dependency Management:** Choose the dependencies to install by using the search bar or drop-down menu
+*   **GitHub Integration:** Monitor remote repositories for new commits by notifications in the terminal , synchronize forks automatically , and           harvest commits across branches.
 *   **Advanced Git Operations:** Perform interactive rebases to sanitize commit histories and manage cross-branch synchronization.
+*    **Vercel Deployment:** Execute one-click deployments for frontend, backend, or full-stack environments through one command. 
 
 <a id="command-reference"></a>
 ##  Command Reference
@@ -62,27 +55,22 @@ hackme44 <command> --help
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
-| `greet` | Simple connection test | `hackme44 greet <name> [--uppercase]` |
-| `project` | Create new project architectures | `hackme44 project <name> [--front] [--back] [--frontandback]` |
-| `init-repo` | Initialize Git and connect to remote | `hackme44 init-repo <name> <repo_url> [--path <targetPath>]` |
-| `vercel` | Deploy directly to Vercel | `hackme44 vercel [name] [--frontandback] [--prod]` |
+| `greet` | Simple greeting user test | `hackme44 greet <name>` |
+| `project` | Intialize a new Project (FronEnd / BackEnd / FrontEnd + BackEnd | `hackme44 project <name>` |
+| `init-repo` | Initialize Git and connect to remote and push the code | `hackme44 init-repo <name>` |
+| `vercel` | Deploy directly to Vercel | `hackme44 vercel [name] ` |
 
 ### Dependency & Integration Commands
 
 | Command | Description | Example |
 | :--- | :--- | :--- |
 | `add` | Install packages (interactive or manual) | `hackme44 add [packages...] [--dev]` |
-| `watch-commits` | Monitor a GitHub repository for changes | `hackme44 watch-commits <repo_url> [--token <token>]` |
+| `watch-commits` | Monitor a GitHub repository for changes | `hackme44 watch-commits <repo_url>` |
 | `rev` | Reverse or modify a previous commit | `hackme44 rev [branch] [--commits-back <count>]` |
 | `harvest` | Move commits between branches | `hackme44 harvest <sourceBranch> [start] [end]` |
 | `sync-fork` | Sync a fork with upstream | `hackme44 sync-fork <fork_url> [upstream_url] [--watch]` |
 
 <a id="use-cases"></a>
-##  Use Cases
-
-*   **Hackathon Scaffolding:** Skip the boilerplate. Spin up an entire full-stack directory and initialize a remote repository in seconds.
-*   **Team Standardization:** Ensure every hackathon team member operates within identical directory structures and dependency trees.
-*   **Commit History Sanitization:** Clean up messy, late-night hackathon commits before submitting the project repository to judges. 
 
 <a id="examples"></a>
 ##  Examples
