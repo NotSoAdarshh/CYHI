@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import { Command } from 'commander';
-import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit, installDependencies, installFrontendDependencies, installBackendDependencies, installPackages } from './command.js';
+import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit, installDependencies, installFrontendDependencies, installBackendDependencies, installPackages, harvestCommits } from './command.js';
 import { projectOptions, promptDependencies, typeDependencies, selectDependencies } from './options.js';
 
 const program = new Command();
@@ -144,6 +144,20 @@ program
       await installPackages(toInstall, options.path, options.dev);
     }
   });
+
+program
+  .command('harvest')
+  .description('Harvest commits from one branch to another')
+  .argument('<sourceBranch>', 'Name of the branch to harvest commits from')
+  .option('-t, --target-branch <targetBranch>', 'Name of the target branch (default: current branch)')
+  .option('-s, --start-commit <start>', 'Starting commit number')
+  .option('-e, --end-commit <end>', 'Ending commit number')
+  .action(async (sourceBranch, options) => {
+    await harvestCommits(sourceBranch, options.startCommit, options.endCommit, {
+      targetBranch: options.targetBranch
+    });
+  });
+
 
 // 3. Parse the user's terminal input
 program.parse(process.argv);

@@ -657,6 +657,125 @@ async function installBackendDependencies(projectName = '', packages = [], isDev
   await installDependencies(packages, targetDir, isDev);
 }
 
+async function harvestCommits(sourceBranch, startNum, endNum, options = {}) {
+  // Need readline for user input if ranges are omitted
+  const readlineModule = await import('node:readline/promises');
+  const { stdin: input, stdout: output } = await import('node:process');
+  const rl = readlineModule.createInterface({ input, output });
+
+  try {
+    if (!sourceBranch) {
+      throw new Error("Source branch name is required (e.g., harvestCommits('feature')).");
+    }
+
+    // 1. Verify working branch and clean worktree
+    const currentBranch = await runCommand('git branch --show-current');
+    const targetBranch = options.targetBranch || currentBranch;
+
+    if (!currentBranch) {
+      throw new Error('Not on a valid Git branch or detached HEAD.');
+    }
+
+    if (currentBranch !== targetBranch) {
+      console.log(`Checking out target branch: ${targetBranch}`);
+      await runCommand(`git checkout ${targetBranch}`);
+    }
+
+    if (targetBranch === sourceBranch) {
+      throw new Error(`Target branch and source branch cannot be identical ('${sourceBranch}').`);
+    }
+
+    const uncommitted = await runCommand('git status --porcelain');
+    if (uncommitted.length > 0) {
+      throw new Error('Working tree contains uncommitted changes. Please commit or stash them first.');
+    }
+
+    // 2. Fetch candidate commits unique to sourceBranch
+    console.log(`\n🌾 Git Harvest`);
+    console.log(` Target Branch (Receiving) : ${targetBranch}`);
+    console.log(` Source Branch (Losing)    : ${sourceBranch}`);
+
+    // Commit list in chronological order (oldest -> newest)
+    const logRaw = await runCommand(`git log ${targetBranch}..${sourceBranch} --oneline --reverse`);
+    if (!logRaw || !logRaw.trim()) {
+      console.log(`\nNo unique commits found on '${sourceBranch}' relative to '${targetBranch}'.`);
+      return;
+    }
+
+    const commits = logRaw.trim().split('\n').filter(Boolean).map((line, idx) => {
+      const [sha, ...msgParts] = line.trim().split(' ');
+      return { num: idx + 1, sha, message: msgParts.join(' ') };
+    });
+
+    console.log(`\nAvailable commits on '${sourceBranch}' (Chronological order):`);
+    commits.forEach(c => {
+      console.log(`  [${c.num}] ${c.sha} - ${c.message}`);
+    });
+
+    // 3. Determine contiguous range [start, end]
+    let start = startNum ? parseInt(startNum, 10) : null;
+    let end = endNum ? parseInt(endNum, 10) : null;
+
+    if (!start || !end) {
+      const rangeInput = await rl.question(
+        `\nEnter contiguous commit range to harvest (e.g., '1 2' or '2-4'): `
+      );
+      const parts = rangeInput.trim().split(/[\s\-:,]+/).map(v => parseInt(v, 10)).filter(Boolean);
+      if (parts.length === 1) {
+        start = parts[0];
+        end = parts[0];
+      } else if (parts.length >= 2) {
+        start = Math.min(parts[0], parts[1]);
+        end = Math.max(parts[0], parts[1]);
+      }
+    }
+
+    if (!start || !end || start < 1 || end > commits.length || start > end) {
+      throw new Error(`Invalid range [${start}, ${end}]. Must be between 1 and ${commits.length}.`);
+    }
+
+    const selectedCommits = commits.slice(start - 1, end);
+    const firstCommit = selectedCommits[0];
+    const lastCommit = selectedCommits[selectedCommits.length - 1];
+
+    console.log(`\nHarvesting commits [${start} to ${end}]:`);
+    selectedCommits.forEach(c => console.log(`  -> ${c.sha}: ${c.message}`));
+
+    // 4. Cherry-pick onto target branch (X .. Y)
+    console.log(`\n[1/3] Copying commits to '${targetBranch}'...`);
+    const commitShas = selectedCommits.map(c => c.sha).join(' ');
+    await runCommand(`git cherry-pick ${commitShas}`);
+    console.log(`Successfully cherry-picked onto ${targetBranch}.`);
+
+    // 5. Switch to source branch and excise commits using rebase --onto
+    console.log(`\n[2/3] Switching to '${sourceBranch}' to excise harvested commits...`);
+    await runCommand(`git checkout ${sourceBranch}`);
+
+    console.log(`[3/3] Running surgical rebase: git rebase --onto ${firstCommit.sha}^ ${lastCommit.sha} ${sourceBranch}`);
+    // rebase --onto X^ Y feature drops X..Y from feature branch and keeps subsequent commits (Z)
+    await runCommand(`git rebase --onto ${firstCommit.sha}^ ${lastCommit.sha} ${sourceBranch}`);
+
+    // 6. Return back to target branch
+    await runCommand(`git checkout ${targetBranch}`);
+
+    console.log(`\n🌾 Harvest completed successfully!`);
+    console.log(` Commits [${firstCommit.sha}..${lastCommit.sha}] moved to '${targetBranch}' and removed from '${sourceBranch}'.\n`);
+
+  } catch (err) {
+    console.error(`\n Error during harvest:`, err.message);
+
+    // Attempt recovery if rebase or cherry-pick gets stuck
+    try {
+      await runCommand('git cherry-pick --abort');
+    } catch { }
+    try {
+      await runCommand('git rebase --abort');
+    } catch { }
+  } finally {
+    rl.close();
+  }
+}
+
 // Alias for installDependencies
 const installPackages = installDependencies;
 
@@ -676,6 +795,7 @@ export {
   installDependencies,
   installFrontendDependencies,
   installBackendDependencies,
-  installPackages
+  installPackages,
+  harvestCommits
 };
 
