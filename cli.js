@@ -1,8 +1,42 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
-import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit, installDependencies, installFrontendDependencies, installBackendDependencies, installPackages, harvestCommits } from './command.js';
+import { projectFolder, frontEndFolder, backEndFolder, vercelFrontEnd, vercelBackEnd } from './project.js';
+import { InitalizeGitRepo, watchRepoCommits, scrubPastCommit, harvestCommits, syncForkBranch, watchAndSyncFork } from './github.js';
+import { installDependencies, installFrontendDependencies, installBackendDependencies, installPackages } from './dependencies.js';
 import { projectOptions, promptDependencies, typeDependencies, selectDependencies } from './options.js';
+import * as p from '@clack/prompts';
+import pc from 'picocolors';
+import figlet from 'figlet';
+
+// Automatically load environment variables from .env
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+for (const envPath of [path.resolve(process.cwd(), '.env'), path.resolve(__dirname, '.env')]) {
+  if (fs.existsSync(envPath)) {
+    try {
+      if (typeof process.loadEnvFile === 'function') {
+        process.loadEnvFile(envPath);
+      } else {
+        const content = fs.readFileSync(envPath, 'utf-8');
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const [key, ...values] = trimmed.split('=');
+          if (key && !process.env[key.trim()]) {
+            let val = values.join('=').trim();
+            if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+              val = val.slice(1, -1);
+            }
+            process.env[key.trim()] = val;
+          }
+        }
+      }
+      break;
+    } catch { }
+  }
+}
 
 const program = new Command();
 
@@ -10,7 +44,15 @@ const program = new Command();
 program
   .name('hackme44')
   .description('A simple CLI built with Commander.js')
-  .version('1.0.0');
+  .version('1.0.0')
+  .hook('preAction', () => {
+    const toolName = 'HACKME44';
+    const banner = figlet.textSync(toolName, {
+      font: 'Standard',
+      horizontalLayout: 'fitted',
+    });
+    console.log(pc.cyan(banner));
+  });
 
 // 2. Define a command, arguments, and options
 program
@@ -69,35 +111,32 @@ program
   .description('Initialize a git repository and connect to a remote repository')
   .argument('<name>', 'Project folder name')
   .argument('<repo_url>', 'Remote Git repository URL')
-  .action(async (name, repo_url) => {
-    await InitalizeGitRepo(name, repo_url);
+  .option('-p, --path <targetPath>', 'Base directory path where the project is located')
+  .action(async (name, repo_url, options) => {
+    const targetPath = options.path ? path.resolve(options.path, name) : name;
+    await InitalizeGitRepo(targetPath, repo_url);
   });
 
 program
   .command('vercel')
   .description('Deploys project to Vercel')
-  .argument('[name]', 'Project folder name ')
+  .argument('[name]', 'Project folder name')
+  .option('-p, --path <targetPath>', 'Base directory path where the project is located')
   .option('-f, --front', 'Deploy FrontEnd')
   .option('-b, --back', 'Deploy BackEnd')
-  .option('-p, --prod', 'Deploy directly to production')
+  .option('--prod', 'Deploy directly to production')
   .action(async (name, options) => {
+    const targetPath = options.path && name ? path.resolve(options.path, name) : (name || '');
     if (options.back && !options.front) {
-
-      await vercelBackEnd(name, options);
-
+      await vercelBackEnd(targetPath, options);
     } else if (options.front && !options.back) {
-
-      await vercelFrontEnd(name, options);
-
+      await vercelFrontEnd(targetPath, options);
     } else if (options.front && options.back) {
-
-      await vercelFrontEnd(name, options);
-
-      await vercelBackEnd(name, options);
-
+      await vercelFrontEnd(targetPath, options);
+      await vercelBackEnd(targetPath, options);
     } else {
       // Default: deploy FrontEnd
-      await vercelFrontEnd(name, options);
+      await vercelFrontEnd(targetPath, options);
     }
   });
 
@@ -125,8 +164,6 @@ program
       push: options.push
     });
   });
-
-
 
 program
   .command('add')
@@ -162,6 +199,36 @@ program
     });
   });
 
+program
+  .command('sync-fork')
+  .description('Sync a forked GitHub repository with its upstream repository')
+  .argument('<fork_url>', 'Fork repository URL or owner/repo')
+  .argument('[upstream_url]', 'Upstream repository URL or owner/repo (optional, auto-detected from GitHub if omitted)')
+  .option('-b, --branch <branch>', 'Branch to sync (default: main)', 'main')
+  .option('-w, --watch', 'Watch upstream for new commits and auto-sync whenever new commits are pushed')
+  .option('-i, --interval <minutes>', 'Polling interval in minutes when watching (default: 2)', '2')
+  .option('-t, --token <token>', 'GitHub Personal Access Token (with repo scope)')
+  .action(async (forkUrl, upstreamUrl, options) => {
+    try {
+      if (options.watch) {
+        await watchAndSyncFork(forkUrl, upstreamUrl, options);
+      } else {
+        await syncForkBranch(forkUrl, options);
+      }
+    } catch {
+      process.exit(1);
+    }
+  });
 
 // 3. Parse the user's terminal input
+
+if (process.argv.length <= 2) {
+  const toolName = 'HACKME44';
+  const banner = figlet.textSync(toolName, {
+    font: 'Standard',
+    horizontalLayout: 'fitted',
+  });
+  console.log(pc.cyan(banner));
+}
+
 program.parse(process.argv);
