@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { frontEndFolder, backEndFolder, projectFolder, InitalizeGitRepo, vercelFrontEnd, vercelBackEnd, watchRepoCommits, scrubPastCommit, installDependencies, installFrontendDependencies, installBackendDependencies, installPackages, harvestCommits, syncForkBranch, watchAndSyncFork } from './command.js';
 import { projectOptions, promptDependencies, typeDependencies, selectDependencies } from './options.js';
+import * as p from '@clack/prompts';
+import pc from 'picocolors';
+import figlet from 'figlet';
 
 // Automatically load environment variables from .env
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -29,7 +32,7 @@ for (const envPath of [path.resolve(process.cwd(), '.env'), path.resolve(__dirna
         }
       }
       break;
-    } catch {}
+    } catch { }
   }
 }
 
@@ -39,7 +42,15 @@ const program = new Command();
 program
   .name('hackme44')
   .description('A simple CLI built with Commander.js')
-  .version('1.0.0');
+  .version('1.0.0')
+  .hook('preAction', () => {
+    const toolName = 'HACKME44';
+    const banner = figlet.textSync(toolName, {
+      font: 'Standard',
+      horizontalLayout: 'fitted',
+    });
+    console.log(pc.cyan(banner));
+  });
 
 // 2. Define a command, arguments, and options
 program
@@ -208,4 +219,14 @@ program
   });
 
 // 3. Parse the user's terminal input
+
+if (process.argv.length <= 2) {
+  const toolName = 'HACKME44';
+  const banner = figlet.textSync(toolName, {
+    font: 'Standard',
+    horizontalLayout: 'fitted',
+  });
+  console.log(pc.cyan(banner));
+}
+
 program.parse(process.argv);
