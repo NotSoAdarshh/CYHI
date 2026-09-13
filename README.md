@@ -18,9 +18,7 @@ A unified Command Line Interface (CLI) built with Commander.js to streamline end
 
 **Global Installation**
 ```bash
-npm install -g .
-# Or from the project directory:
-npm link
+npm install -g hackme44
 ```
 
 **Local Usage**
@@ -36,6 +34,11 @@ Access the help system at any time:
 hackme44 --help
 # Or for a specific command:
 hackme44 <command> --help
+```
+Vercel
+```bash
+npx i vercel
+vercel login
 ```
 
 <a id="core-features"></a>
@@ -64,7 +67,7 @@ hackme44 <command> --help
 | `greet` | Simple greeting user test | `hackme44 greet <name>` |
 | `project` | Intialize a new Project (FronEnd / BackEnd / FrontEnd + BackEnd | `hackme44 project <name>` |
 | `init-repo` | Initialize Git and connect to remote and push the code | `hackme44 init-repo <name>` |
-| `vercel` | Deploy directly to Vercel | `hackme44 vercel [name] ` |
+| `vercel` | Deploy directly to Vercel | `hackme44 vercel <name> ` |
 
 ### Dependency & Integration Commands
 
