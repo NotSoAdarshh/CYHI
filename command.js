@@ -676,13 +676,26 @@ async function harvestCommits(sourceBranch, startNum, endNum, options = {}) {
       throw new Error('Not on a valid Git branch or detached HEAD.');
     }
 
+    if (targetBranch === sourceBranch) {
+      throw new Error(`Target branch and source branch cannot be identical ('${sourceBranch}').`);
+    }
+
+    // Verify sourceBranch and targetBranch exist
+    try {
+      await exec(`git rev-parse --verify "${sourceBranch}"`);
+    } catch {
+      throw new Error(`Source branch '${sourceBranch}' does not exist in local repository. Check 'git branch' to see available branches.`);
+    }
+
+    try {
+      await exec(`git rev-parse --verify "${targetBranch}"`);
+    } catch {
+      throw new Error(`Target branch '${targetBranch}' does not exist in local repository.`);
+    }
+
     if (currentBranch !== targetBranch) {
       console.log(`Checking out target branch: ${targetBranch}`);
       await runCommand(`git checkout ${targetBranch}`);
-    }
-
-    if (targetBranch === sourceBranch) {
-      throw new Error(`Target branch and source branch cannot be identical ('${sourceBranch}').`);
     }
 
     const uncommitted = await runCommand('git status --porcelain');
@@ -764,12 +777,12 @@ async function harvestCommits(sourceBranch, startNum, endNum, options = {}) {
   } catch (err) {
     console.error(`\n Error during harvest:`, err.message);
 
-    // Attempt recovery if rebase or cherry-pick gets stuck
+    // Attempt quiet recovery if rebase or cherry-pick gets stuck
     try {
-      await runCommand('git cherry-pick --abort');
+      await exec('git cherry-pick --abort');
     } catch { }
     try {
-      await runCommand('git rebase --abort');
+      await exec('git rebase --abort');
     } catch { }
   } finally {
     rl.close();
