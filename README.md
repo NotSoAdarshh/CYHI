@@ -7,7 +7,6 @@ A unified Command Line Interface (CLI) built with Commander.js to streamline end
 - [Getting Started](#getting-started)
 - [Core Features](#core-features)
 - [Command Reference](#command-reference)
-- [Use Cases](#use-cases)
 - [Examples](#examples)
 - [Configuration](#configuration)
 - [Project Structure](#project-structure)
