@@ -149,11 +149,15 @@ program
   .command('harvest')
   .description('Harvest commits from one branch to another')
   .argument('<sourceBranch>', 'Name of the branch to harvest commits from')
+  .argument('[start]', 'Starting commit number')
+  .argument('[end]', 'Ending commit number')
   .option('-t, --target-branch <targetBranch>', 'Name of the target branch (default: current branch)')
   .option('-s, --start-commit <start>', 'Starting commit number')
   .option('-e, --end-commit <end>', 'Ending commit number')
-  .action(async (sourceBranch, options) => {
-    await harvestCommits(sourceBranch, options.startCommit, options.endCommit, {
+  .action(async (sourceBranch, startArg, endArg, options) => {
+    const start = options.startCommit || startArg;
+    const end = options.endCommit || endArg;
+    await harvestCommits(sourceBranch, start, end, {
       targetBranch: options.targetBranch
     });
   });

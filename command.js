@@ -216,7 +216,7 @@ async function InitalizeGitRepo(project_name = '', repo_url = '') {
     await runCommand('git branch -M main', { cwd: targetDir });
 
     // 5. git remote add origin <url>
-    const remoteUrl = repo_url || (project_name ? `https://github.com/USERNAME/${project_name}.git` : 'https://github.com/USERNAME/myProject.git');
+    const remoteUrl = repo_url || (project_name ? `https://github.com/USERNAME/${path.basename(project_name)}.git` : 'https://github.com/USERNAME/myProject.git');
     console.log(`> git remote add origin ${remoteUrl}`);
     await runCommand(`git remote add origin ${remoteUrl}`, { cwd: targetDir });
 
@@ -246,7 +246,7 @@ async function vercelFrontEnd(project_name = '', options = {}) {
     }
 
     // Sanitize project name for Vercel: must be lowercase, alphanumeric + '.', '_', '-', no '---'
-    const rawName = project_name ? `${project_name}-frontend` : path.basename(targetDir);
+    const rawName = project_name ? `${path.basename(project_name)}-frontend` : path.basename(targetDir);
     const sanitizedName = rawName
       .toLowerCase()
       .replace(/[^a-z0-9._-]/g, '-')
@@ -316,7 +316,7 @@ async function vercelBackEnd(project_name = '', options = {}) {
     } catch { }
 
     // Sanitize project name for Vercel: must be lowercase, alphanumeric + '.', '_', '-', no '---'
-    const rawName = project_name ? `${project_name}-backend` : path.basename(targetDir);
+    const rawName = project_name ? `${path.basename(project_name)}-backend` : path.basename(targetDir);
     const sanitizedName = rawName
       .toLowerCase()
       .replace(/[^a-z0-9._-]/g, '-')
@@ -640,7 +640,7 @@ async function installDependencies(packages = [], targetDir = '', isDev = false)
  * @param {boolean} isDev - Whether to install as devDependencies
  */
 async function installFrontendDependencies(projectName = '', packages = [], isDev = false) {
-  const targetDir = projectName ? path.join(projectName, 'FrontEnd') : 'FrontEnd';
+  const targetDir = projectName ? path.resolve(projectName, 'FrontEnd') : path.resolve('FrontEnd');
   console.log(`Installing FrontEnd dependencies for "${projectName || 'current project'}"...`);
   await installDependencies(packages, targetDir, isDev);
 }
@@ -652,7 +652,7 @@ async function installFrontendDependencies(projectName = '', packages = [], isDe
  * @param {boolean} isDev - Whether to install as devDependencies
  */
 async function installBackendDependencies(projectName = '', packages = [], isDev = false) {
-  const targetDir = projectName ? path.join(projectName, 'BackEnd') : 'BackEnd';
+  const targetDir = projectName ? path.resolve(projectName, 'BackEnd') : path.resolve('BackEnd');
   console.log(`Installing BackEnd dependencies for "${projectName || 'current project'}"...`);
   await installDependencies(packages, targetDir, isDev);
 }
