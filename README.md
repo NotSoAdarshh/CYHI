@@ -18,9 +18,7 @@ A unified Command Line Interface (CLI) built with Commander.js to streamline end
 
 **Global Installation**
 ```bash
-npm install -g .
-# Or from the project directory:
-npm link
+npm install -g hackme44
 ```
 
 **Local Usage**
@@ -37,16 +35,27 @@ hackme44 --help
 # Or for a specific command:
 hackme44 <command> --help
 ```
+Vercel
+```bash
+npx i vercel
+vercel login
+```
 
 <a id="core-features"></a>
 ##  Core Features
 
-*   **Project Initialization:** Quickly generate standardized frontend (React/Vite), backend (Node.js/Express), or full-stack project structures with automated Tailwind CSS configurations with just one command 
-*   **Git Repository Management:** Intialize repo and create a GitHub repo with a single command within the terminal.
-*   **Dependency Management:** Choose the dependencies to install by using the search bar or drop-down menu
-*   **GitHub Integration:** Monitor remote repositories for new commits by notifications in the terminal , synchronize forks automatically , and           harvest commits across branches.
-*   **Advanced Git Operations:** Perform interactive rebases to sanitize commit histories and manage cross-branch synchronization.
-*    **Vercel Deployment:** Execute one-click deployments for frontend, backend, or full-stack environments through one command. 
+*   **Project Initialization:**
+*   Quickly generate standardized frontend (React/Vite), backend (Node.js/Express), or full-stack project structures with automated Tailwind CSS         configurations with just one command 
+*   **Git Repository Management:**
+*   Intialize repo and create a GitHub repo with a single command within the terminal.
+*   **Dependency Management:**
+*   Choose the dependencies to install by using the search bar or drop-down menu
+*   **GitHub Integration:**
+*   Monitor remote repositories for new commits by notifications in the terminal , synchronize forks automatically , and           harvest commits       across branches.
+*   **Advanced Git Operations:**
+*   Perform interactive rebases to sanitize commit histories and manage cross-branch synchronization.
+*    **Vercel Deployment:**
+*    Execute one-click deployments for frontend, backend, or full-stack environments through one command. 
 
 <a id="command-reference"></a>
 ##  Command Reference
@@ -58,7 +67,7 @@ hackme44 <command> --help
 | `greet` | Simple greeting user test | `hackme44 greet <name>` |
 | `project` | Intialize a new Project (FronEnd / BackEnd / FrontEnd + BackEnd | `hackme44 project <name>` |
 | `init-repo` | Initialize Git and connect to remote and push the code | `hackme44 init-repo <name>` |
-| `vercel` | Deploy directly to Vercel | `hackme44 vercel [name] ` |
+| `vercel` | Deploy directly to Vercel | `hackme44 vercel <name> ` |
 
 ### Dependency & Integration Commands
 
