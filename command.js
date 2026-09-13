@@ -107,7 +107,18 @@ export default defineConfig({
     const installOutput = await runCommand('npm install tailwindcss @tailwindcss/vite', { cwd: folderPath });
     console.log(`Tailwind CSS installed:\n${installOutput}`);
 
-    console.log(`Cleaned FrontEnd files & configured Tailwind CSS successfully.`);
+    // 6. Ensure .gitignore includes .env
+    const gitignorePath = path.join(folderPath, '.gitignore');
+    if (existsSync(gitignorePath)) {
+      const currentGitignore = await fs.readFile(gitignorePath, 'utf-8');
+      if (!currentGitignore.includes('.env')) {
+        await fs.appendFile(gitignorePath, '\n# Environment variables\n.env\n.env.*\n*.env\n');
+      }
+    } else {
+      await fs.writeFile(gitignorePath, 'node_modules/\ndist/\n.env\n.env.*\n*.env\n');
+    }
+
+    console.log(`Cleaned FrontEnd files, configured Tailwind CSS, and ensured .env in .gitignore successfully.`);
   }
   catch (err) {
     console.log("Handled error in frontEndDeleteFiles function:", err.message);
@@ -187,6 +198,10 @@ app.listen(PORT, () => {
 `;
     await fs.writeFile(path.join(folderPath, 'index.js'), starterServer);
 
+    // 7. Create .gitignore for BackEnd
+    const gitignorePath = path.join(folderPath, '.gitignore');
+    await fs.writeFile(gitignorePath, "node_modules/\n.env\n.env.*\n*.env\nlogs/\n*.log\n");
+
     console.log(`BackEnd boilerplate setup complete.`);
   }
   catch (err) {
@@ -197,7 +212,23 @@ app.listen(PORT, () => {
 async function InitalizeGitRepo(project_name = '', repo_url = '') {
   try {
     const targetDir = project_name ? path.resolve(project_name) : process.cwd();
+
+    if (!existsSync(targetDir)) {
+      throw new Error(`Directory "${targetDir}" does not exist. If your project was created in a custom path (e.g., -p ../), please pass the full path or use -p/--path.`);
+    }
+
     console.log(`Initializing Git repository in ${targetDir}...`);
+
+    // Ensure root .gitignore exists and ignores .env and node_modules before staging
+    const rootGitignore = path.join(targetDir, '.gitignore');
+    if (!existsSync(rootGitignore)) {
+      await fs.writeFile(rootGitignore, "node_modules/\n.env\n.env.*\n*.env\ndist/\nbuild/\n");
+    } else {
+      const existing = await fs.readFile(rootGitignore, 'utf-8');
+      if (!existing.includes('.env')) {
+        await fs.appendFile(rootGitignore, '\n# Environment variables\n.env\n.env.*\n*.env\n');
+      }
+    }
 
     // 1. git init
     console.log("> git init");
@@ -464,6 +495,217 @@ async function watchRepoCommits(repoUrl, options = {}) {
 
   } catch (err) {
     console.error(`\n Error starting commit watcher: ${err.message}`);
+  }
+}
+
+/**
+ * Triggers a sync of a fork branch with its upstream repository via GitHub REST API.
+ * POST /repos/{owner}/{repo}/merge-upstream
+ * @param {string} forkUrl - Fork repository URL or owner/repo
+ * @param {object} options - { branch, token }
+ * @returns {Promise<object>} - Result of the sync operation
+ */
+async function syncForkBranch(forkUrl, options = {}) {
+  try {
+    const { owner, repo } = parseGitHubUrl(forkUrl);
+    const branch = options.branch || 'main';
+    const token = options.token || process.env.GITHUB_TOKEN;
+
+    if (!token) {
+      throw new Error('A GitHub Personal Access Token (PAT) with "repo" scope is required to sync a fork. Pass --token <token> or set GITHUB_TOKEN environment variable.');
+    }
+
+    const ghHeaders = {
+      'User-Agent': 'HackMe44-Fork-Sync',
+      'Accept': 'application/vnd.github+json',
+      'Authorization': `Bearer ${token}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json'
+    };
+
+    console.log(`\nConnecting to GitHub to sync fork [${owner}/${repo}] (branch: ${branch})...`);
+
+    // Step 1: Fetch fork metadata to get the parent (upstream) repo
+    const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: ghHeaders });
+    if (!repoRes.ok) {
+      throw new Error(`Cannot access repository "${owner}/${repo}": ${repoRes.statusText}`);
+    }
+
+    // Verify token permissions for classic tokens (ghp_*)
+    const tokenScopes = repoRes.headers.get('x-oauth-scopes');
+    if (tokenScopes !== null && !tokenScopes.split(',').map(s => s.trim().toLowerCase()).some(s => s === 'repo' || s === 'public_repo')) {
+      throw new Error(
+        `GitHub token lacks write permissions to sync this fork.\n` +
+        `   Current scopes: [${tokenScopes ? tokenScopes : 'no scopes selected'}]\n` +
+        `   Required scope: "repo" (or "public_repo" for public repositories)\n` +
+        `   👉 Solution: Go to https://github.com/settings/tokens, edit/create your token, and check the "repo" box.`
+      );
+    }
+
+    const repoInfo = await repoRes.json();
+    if (!repoInfo.fork || !repoInfo.parent) {
+      throw new Error(`"${owner}/${repo}" is not a fork on GitHub. The sync-fork command only works on forked repositories.`);
+    }
+    const parentFullName = repoInfo.parent.full_name;
+
+    // Step 2: Compare fork branch with upstream using GitHub compare API
+    // This avoids the known GitHub quirk where merge-upstream returns 404 when already in sync
+    const compareUrl = `https://api.github.com/repos/${parentFullName}/compare/${branch}...${owner}:${repo}:${branch}`;
+    const compareRes = await fetch(compareUrl, { headers: ghHeaders });
+    if (compareRes.ok) {
+      const cmp = await compareRes.json();
+      if (cmp.behind_by === 0) {
+        console.log(`\nℹ️  Fork [${owner}/${repo}:${branch}] is already up to date with upstream [${parentFullName}].`);
+        console.log(`   Status: identical (0 commits behind upstream)\n`);
+        return { success: true, merge_type: 'none', alreadyInSync: true };
+      }
+      console.log(`   Fork is ${cmp.behind_by} commit(s) behind upstream. Syncing...`);
+    }
+
+    // Step 3: Call merge-upstream to sync the fork
+    const apiUrl = `https://api.github.com/repos/${owner}/${repo}/merge-upstream`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: ghHeaders,
+      body: JSON.stringify({ branch })
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 200) {
+      if (data.merge_type === 'none' || (data.message && data.message.includes('not behind'))) {
+        console.log(`\nℹ️  Fork [${owner}/${repo}:${branch}] is already up to date with upstream.`);
+        console.log(`   Message     : ${data.message}\n`);
+      } else {
+        console.log(`\n🎉 Successfully synced fork [${owner}/${repo}:${branch}] with upstream!`);
+        console.log(`   Merge Type  : ${data.merge_type || 'fast-forward'}`);
+        console.log(`   Base Branch : ${data.base_branch || 'upstream'}`);
+        console.log(`   Message     : ${data.message}\n`);
+      }
+      return { success: true, ...data };
+    } else if (response.status === 409) {
+      console.warn(`\n⚠️  Merge conflict encountered while syncing fork [${owner}/${repo}:${branch}].`);
+      console.warn(`   ${data.message || 'Cannot automatically merge upstream changes due to conflicts.'}`);
+      console.warn(`   Action required: Resolve conflicts manually on GitHub or in your local clone.\n`);
+      return { success: false, conflict: true, ...data };
+    } else if (response.status === 422) {
+      throw new Error(`Cannot sync "${owner}/${repo}": ${data.message || 'Repository is not a fork or branch does not exist.'}`);
+    } else if (response.status === 404) {
+      throw new Error(
+        `GitHub API error (404): Not Found.\n` +
+        `   This occurs when the token lacks write/push access to branch "${branch}" on "${owner}/${repo}".\n` +
+        `   Ensure your token has the "repo" scope checked at https://github.com/settings/tokens.`
+      );
+    } else {
+      throw new Error(`GitHub API error (${response.status}): ${data.message || response.statusText}`);
+    }
+  } catch (err) {
+    console.error(`\n❌ Error syncing fork:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * Monitors an upstream repository for new commits, and automatically triggers
+ * GitHub merge-upstream API to sync the forked repository.
+ * @param {string} forkUrl - Fork repository URL or owner/repo
+ * @param {string} [upstreamUrl] - Upstream repository URL or owner/repo (auto-detected if omitted)
+ * @param {object} options - { branch, token, interval, initialSync }
+ */
+async function watchAndSyncFork(forkUrl, upstreamUrl = '', options = {}) {
+  try {
+    const fork = parseGitHubUrl(forkUrl);
+    const branch = options.branch || 'main';
+    const intervalMinutes = options.interval ? parseFloat(options.interval) : 2;
+    const intervalMs = Math.max(intervalMinutes * 60 * 1000, 5000);
+    const token = options.token || process.env.GITHUB_TOKEN;
+
+    if (!token) {
+      throw new Error('A GitHub Personal Access Token (PAT) with "repo" scope is required to sync a fork. Pass --token <token> or set GITHUB_TOKEN environment variable.');
+    }
+
+    // Auto-detect upstream parent repo if not specified
+    let targetUpstream = upstreamUrl;
+    if (!targetUpstream) {
+      console.log(`\nAuto-detecting upstream parent repository for [${fork.owner}/${fork.repo}]...`);
+      const repoDetailsRes = await fetch(`https://api.github.com/repos/${fork.owner}/${fork.repo}`, {
+        headers: {
+          'User-Agent': 'HackMe44-Fork-Sync',
+          'Accept': 'application/vnd.github+json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!repoDetailsRes.ok) {
+        throw new Error(`Failed to inspect repository "${fork.owner}/${fork.repo}": ${repoDetailsRes.statusText}`);
+      }
+      const repoInfo = await repoDetailsRes.json();
+      if (!repoInfo.fork || !repoInfo.parent) {
+        throw new Error(`Repository "${fork.owner}/${fork.repo}" is not a fork on GitHub.`);
+      }
+      targetUpstream = repoInfo.parent.full_name;
+      console.log(`Detected upstream repository: ${targetUpstream}`);
+    }
+
+    const upstream = parseGitHubUrl(targetUpstream);
+
+    console.log(`\n======================================================`);
+    console.log(`🔄 GitHub Fork Auto-Sync Watcher`);
+    console.log(`   Fork (Target)     : ${fork.owner}/${fork.repo} (branch: ${branch})`);
+    console.log(`   Upstream (Source) : ${upstream.owner}/${upstream.repo} (branch: ${branch})`);
+    console.log(`   Poll Interval     : ${intervalMinutes} minute(s)`);
+    console.log(`======================================================\n`);
+
+    // Initial check of upstream commits
+    console.log(`Checking upstream [${upstream.owner}/${upstream.repo}]...`);
+    const initialData = await fetchRepoCommits(upstream.owner, upstream.repo, { branch, token });
+    let lastSeenSha = initialData.commits[0].sha;
+    const latest = initialData.commits[0];
+    const latestMsg = latest.commit.message.split('\n')[0];
+    console.log(`Current upstream HEAD: [${lastSeenSha.substring(0, 7)}] ${latestMsg}`);
+
+    // Initial sync check
+    console.log(`\nChecking fork status with upstream...`);
+    try {
+      await syncForkBranch(forkUrl, { branch, token });
+    } catch { }
+
+    console.log(`Watching upstream for new commits... (Press Ctrl+C to stop)\n`);
+
+    setInterval(async () => {
+      try {
+        const { commits } = await fetchRepoCommits(upstream.owner, upstream.repo, { branch, token });
+        if (!commits || commits.length === 0) return;
+
+        const currentLatestSha = commits[0].sha;
+        if (currentLatestSha !== lastSeenSha) {
+          const newCommitsCount = commits.findIndex(c => c.sha === lastSeenSha);
+          const countStr = newCommitsCount > 0 ? `${newCommitsCount} new commit(s)` : 'New commit(s)';
+          const latestCommit = commits[0];
+          const latestMsg = latestCommit.commit.message.split('\n')[0];
+
+          console.log(`\n🚨 UPSTREAM UPDATE DETECTED! (${countStr})`);
+          console.log(`   Latest  : [${currentLatestSha.substring(0, 7)}] ${latestMsg}`);
+          console.log(`   Author  : ${latestCommit.commit.author.name}`);
+          console.log(`\n🚀 Auto-syncing fork [${fork.owner}/${fork.repo}] with upstream...`);
+
+          try {
+            await syncForkBranch(forkUrl, { branch, token });
+          } catch (syncErr) {
+            console.error(`Sync failed:`, syncErr.message);
+          }
+
+          lastSeenSha = currentLatestSha;
+        } else {
+          const now = new Date().toLocaleTimeString();
+          console.log(`[${now}] Upstream [${upstream.owner}/${upstream.repo}] checked - in sync.`);
+        }
+      } catch (pollErr) {
+        console.error(`[${new Date().toLocaleTimeString()}] Error during poll/sync:`, pollErr.message);
+      }
+    }, intervalMs);
+
+  } catch (err) {
+    console.error(`\n❌ Error starting fork auto-sync watcher:`, err.message);
   }
 }
 
@@ -810,5 +1052,7 @@ export {
   installFrontendDependencies,
   installBackendDependencies,
   installPackages,
-  harvestCommits
+  harvestCommits,
+  syncForkBranch,
+  watchAndSyncFork
 };
