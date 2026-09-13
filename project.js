@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { promptDependencies } from './options.js';
+import { promptDependencies, promptFrontendDependencies, promptBackendDependencies } from './options.js';
 import { installDependencies } from './dependencies.js';
 import { runCommand } from './utils.js';
 
@@ -94,6 +94,13 @@ export default defineConfig({
     }
 
     console.log(`Cleaned FrontEnd files, configured Tailwind CSS, and ensured .env in .gitignore successfully.`);
+
+    // 7. Prompt and install user-selected dependencies for FrontEnd
+    console.log(`\n📦 Select FrontEnd dependencies to install for "${project_name || 'FrontEnd'}":`);
+    const customPackages = await promptFrontendDependencies();
+    if (customPackages && customPackages.length > 0) {
+      await installDependencies(customPackages, folderPath);
+    }
   }
   catch (err) {
     console.log("Handled error in frontEndDeleteFiles function:", err.message);
@@ -149,7 +156,7 @@ async function backEndBoilerPlate(project_name = '') {
 
     // 5. Prompt and install user-selected dependencies for BackEnd
     console.log(`\n📦 Select BackEnd dependencies to install for "${project_name || 'BackEnd'}":`);
-    const customPackages = await promptDependencies();
+    const customPackages = await promptBackendDependencies();
     if (customPackages && customPackages.length > 0) {
       await installDependencies(customPackages, folderPath);
     }

@@ -172,17 +172,34 @@ program
 program
   .command('add')
   .alias('install')
-  .description('Install dependencies (type multiple packages or select interactively)')
-  .argument('[packages...]', 'Package names to install (optional, launches interactive prompt if omitted)')
+  .description('Install dependencies (type multiple packages or search & select interactively)')
+  .argument('[packages...]', 'Package names to install (optional, launches interactive search if omitted)')
   .option('-d, --dev', 'Save packages as devDependencies (-D)')
+  .option('-f, --front', 'Install dependencies for FrontEnd')
+  .option('-b, --back', 'Install dependencies for BackEnd')
   .option('-p, --path <path>', 'Target directory to install in', '')
   .action(async (packages, options) => {
+    let targetType = 'all';
+    let targetDir = options.path;
+
+    if (options.front) {
+      targetType = 'frontend';
+      if (!targetDir) {
+        targetDir = fs.existsSync(path.resolve('FrontEnd')) ? path.resolve('FrontEnd') : '';
+      }
+    } else if (options.back) {
+      targetType = 'backend';
+      if (!targetDir) {
+        targetDir = fs.existsSync(path.resolve('BackEnd')) ? path.resolve('BackEnd') : '';
+      }
+    }
+
     let toInstall = packages;
     if (!toInstall || toInstall.length === 0) {
-      toInstall = await promptDependencies();
+      toInstall = await promptDependencies(targetType);
     }
     if (toInstall && toInstall.length > 0) {
-      await installPackages(toInstall, options.path, options.dev);
+      await installPackages(toInstall, targetDir, options.dev);
     }
   });
 
